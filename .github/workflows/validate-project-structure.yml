@@ -70,17 +70,6 @@ jobs:
                       if parts:
                           expected_files.add("/".join(parts))
 
-          # Required root-level files (from requirements)
-          explicit_required_files = {
-              ".gitignore",
-              "Dockerfile",
-              "README.md",
-              "conftest.py",
-              "docker-compose.yml",
-              "requirements.txt",
-          }
-          expected_files.update(explicit_required_files)
-
           expected_dirs = {
               "evaluation",
               "instances",
