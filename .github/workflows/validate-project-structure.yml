@@ -136,6 +136,8 @@ jobs:
               sys.exit(1)
 
           delete_comments_with_prefixes((failure_prefix, success_prefix))
+          # Remove failure label if present now that validation passed
+          subprocess.run(["gh", "pr", "edit", pr_number, "--remove-label", "invalid-structure"], check=False)
           subprocess.run(
               ["gh", "label", "create", "structure-validated", "--color", "0e8a16", "--description", "Project structure validated", "--force"],
               check=False,

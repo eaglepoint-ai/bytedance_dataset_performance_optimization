@@ -114,6 +114,8 @@ jobs:
           folder = f"BD-RL-{project_number.zfill(3)}-{project_name}"
 
           delete_comments_with_prefixes((failure_prefix, success_prefix))
+          # Remove failure label if present now that validation passed
+          subprocess.run(["gh", "pr", "edit", pr_number, "--remove-label", "needs-info"], check=False)
 
           if gout:
               with open(gout, "a", encoding="utf-8") as f:
