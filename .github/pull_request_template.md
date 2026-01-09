@@ -1,11 +1,3 @@
----
-name: Dataset Import Request
-about: Import a new dataset project
-title: "[Dataset] "
-labels: dataset
-assignees: ''
----
-
 <!--
 AUTO-PARSING TEMPLATE — Bot reads the "Project Number" and "Project Name" values below.
 Expected patterns:
