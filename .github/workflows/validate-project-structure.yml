@@ -25,6 +25,7 @@ jobs:
       - name: Validate project structure against init_project.py
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
@@ -32,19 +33,42 @@ jobs:
 
           python - <<'PY'
           import ast
+          import json
           import os
           import subprocess
           import sys
           from pathlib import Path
 
           pr_number = os.environ["PR_NUMBER"]
+          repo = os.environ["REPO"]
           gh_token = os.environ.get("GH_TOKEN", "")
           init_path = Path("init_project.py")
 
           errors = []
 
+          def delete_comments_with_prefixes(prefixes):
+              """Delete bot comments starting with any of the prefixes."""
+              try:
+                  res = subprocess.run(
+                      ["gh", "api", f"repos/{repo}/issues/{pr_number}/comments"],
+                      check=True,
+                      capture_output=True,
+                      text=True,
+                  )
+                  comments = json.loads(res.stdout)
+              except Exception:
+                  return
+
+              for comment in comments:
+                  cbody = comment.get("body", "")
+                  if any(cbody.startswith(prefix) for prefix in prefixes):
+                      subprocess.run(
+                          ["gh", "api", f"repos/{repo}/issues/comments/{comment['id']}", "-X", "DELETE"],
+                          check=False,
+                      )
+
           if not init_path.exists():
-              errors.append(f"init_project.py not found at repo root.")
+              errors.append("init_project.py not found at repo root.")
 
           def extract_parts(node):
               if isinstance(node, ast.Name) and node.id == "root":
@@ -60,9 +84,7 @@ jobs:
               return None
 
           expected_files = set()
-          if errors:
-              expected_files = set()
-          else:
+          if not errors:
               tree = ast.parse(init_path.read_text(encoding="utf-8"))
               for node in ast.walk(tree):
                   if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "write_file" and node.args:
@@ -85,21 +107,23 @@ jobs:
                   expected_dirs.add(parent.as_posix())
 
           repo_root = Path(".")
-
           missing_dirs = [d for d in sorted(expected_dirs) if not (repo_root / d).is_dir()]
           missing_files = [f for f in sorted(expected_files) if not (repo_root / f).is_file()]
 
+          failure_prefix = "❌ Project structure validation failed"
+          success_prefix = "✅ Project structure validated"
+
           if missing_dirs or missing_files or errors:
-              lines = ["❌ Project structure validation failed. Source: init_project.py"]
+              delete_comments_with_prefixes((failure_prefix, success_prefix))
+              lines = [f"{failure_prefix}. Source: init_project.py"]
               for d in missing_dirs:
-                  lines.append(f"- Missing required directory: `{d}/` – Please create the `{d}/` directory at repo root.")
+                  lines.append(f"- Missing required directory: `{d}/` - Please create the `{d}/` directory at repo root.")
               for f in missing_files:
-                  lines.append(f"- Missing required file: `{f}` – Please add `{f}` at repo root.")
+                  lines.append(f"- Missing required file: `{f}` - Please add `{f}` at repo root.")
               for e in errors:
                   lines.append(f"- {e}")
               message = "\n".join(lines)
 
-              # Ensure label exists and add it
               subprocess.run(
                   ["gh", "label", "create", "invalid-structure", "--color", "d73a4a", "--description", "PR fails project structure validation", "--force"],
                   check=False,
@@ -111,12 +135,10 @@ jobs:
               subprocess.run(["gh", "pr", "comment", pr_number, "--body", message], check=False)
               sys.exit(1)
 
-          # Success path
-          success_msg = "✅ Project structure validated successfully against `init_project.py`."
+          delete_comments_with_prefixes((failure_prefix, success_prefix))
           subprocess.run(
               ["gh", "label", "create", "structure-validated", "--color", "0e8a16", "--description", "Project structure validated", "--force"],
               check=False,
           )
           subprocess.run(["gh", "pr", "edit", pr_number, "--add-label", "structure-validated"], check=False)
-          subprocess.run(["gh", "pr", "comment", pr_number, "--body", success_msg], check=False)
           PY

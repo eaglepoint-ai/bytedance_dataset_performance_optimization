@@ -27,20 +27,48 @@ jobs:
         env:
           PR_BODY: ${{ github.event.pull_request.body || '' }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
 
           python - <<'PY'
-          import os, re, subprocess, sys, textwrap
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+          import textwrap
 
           body = os.environ.get("PR_BODY", "") or ""
           pr_number = os.environ["PR_NUMBER"]
+          repo = os.environ["REPO"]
           gh_token = os.environ.get("GH_TOKEN")
           gout = os.environ.get("GITHUB_OUTPUT")
 
           errors = []
+
+          def delete_comments_with_prefixes(prefixes):
+              """Delete bot comments starting with any of the prefixes."""
+              try:
+                  res = subprocess.run(
+                      ["gh", "api", f"repos/{repo}/issues/{pr_number}/comments"],
+                      check=True,
+                      capture_output=True,
+                      text=True,
+                  )
+                  comments = json.loads(res.stdout)
+              except Exception:
+                  return
+
+              for comment in comments:
+                  cbody = comment.get("body", "")
+                  if any(cbody.startswith(prefix) for prefix in prefixes):
+                      subprocess.run(
+                          ["gh", "api", f"repos/{repo}/issues/comments/{comment['id']}", "-X", "DELETE"],
+                          check=False,
+                      )
 
           def extract_value(label):
               # label expects a regex fragment, e.g., r"project\s*number"
@@ -55,7 +83,6 @@ jobs:
               value = re.sub(r"^[*_`]+|[*_`]+$", "", value).strip()
               return value
 
-          # Use single-escaped patterns so the final regex is `project\s*number\s*:\s*(...)`
           raw_number = extract_value(r"project\s*number")
           raw_name = extract_value(r"project\s*name")
 
@@ -70,10 +97,13 @@ jobs:
               if not re.fullmatch(r"[a-z0-9_]+", raw_name):
                   errors.append("❌ Invalid Project Name. Use lowercase snake_case (e.g., mechanical_refactor_score).")
 
+          failure_prefix = "❌ PR Validation Failed"
+          success_prefix = "✅ PR Validation Passed"
+
           if errors:
-              message = "❌ PR Validation Failed:\n" + "\n".join(f"- {e}" for e in errors) + "\n\nPlease include both fields in the description:\n- **Project Number:** 013\n- **Project Name:** mechanical_refactor_score"
+              delete_comments_with_prefixes((failure_prefix, success_prefix))
+              message = failure_prefix + ":\n" + "\n".join(f"- {e}" for e in errors) + "\n\nPlease include both fields in the description:\n- **Project Number:** 013\n- **Project Name:** mechanical_refactor_score"
               subprocess.run(["gh", "pr", "comment", pr_number, "--body", message], check=False)
-              # Make sure the label exists; creation is idempotent and avoids failures if the label is missing
               subprocess.run(["gh", "label", "create", "needs-info", "--color", "c5def5", "--description", "PR needs required info", "--force"], check=False)
               subprocess.run(["gh", "pr", "edit", pr_number, "--add-label", "needs-info"], check=False)
               sys.exit(1)
@@ -83,12 +113,11 @@ jobs:
           project_name = raw_name.lower()
           folder = f"BD-RL-{project_number.zfill(3)}-{project_name}"
 
-          success_msg = f"✅ PR Validation Passed. Target folder: {folder}"
-          subprocess.run(["gh", "pr", "comment", pr_number, "--body", success_msg], check=False)
+          delete_comments_with_prefixes((failure_prefix, success_prefix))
 
           if gout:
               with open(gout, "a", encoding="utf-8") as f:
-                  f.write(f"project_number={project_number}\\n")
-                  f.write(f"project_name={project_name}\\n")
-                  f.write(f"target_folder={folder}\\n")
+                  f.write(f"project_number={project_number}\n")
+                  f.write(f"project_name={project_name}\n")
+                  f.write(f"target_folder={folder}\n")
           PY
