@@ -17,6 +17,11 @@ jobs:
       contents: read
       pull-requests: write
     steps:
+      - name: Checkout repository (needed for gh context)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
       - name: Validate PR description for required dataset fields
         id: validate
         env:
