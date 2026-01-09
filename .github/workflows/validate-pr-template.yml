@@ -43,12 +43,19 @@ jobs:
           errors = []
 
           def extract_value(label):
-              pattern = rf"{label}\\s*:\\s*(.+)"
+              # label expects a regex fragment, e.g., r"project\s*number"
+              pattern = rf"{label}\s*:\s*(.+)"
               match = re.search(pattern, body, flags=re.IGNORECASE)
-              return match.group(1).strip() if match else None
+              if not match:
+                  return None
+              value = match.group(1).strip()
+              # Strip common Markdown wrappers (**value**, `value`)
+              value = re.sub(r"^[*_`]+|[*_`]+$", "", value).strip()
+              return value
 
-          raw_number = extract_value("project\\s*number")
-          raw_name = extract_value("project\\s*name")
+          # Use single-escaped patterns so the final regex is `project\s*number\s*:\s*(...)`
+          raw_number = extract_value(r"project\s*number")
+          raw_name = extract_value(r"project\s*name")
 
           if not raw_number:
               errors.append("❌ Missing Project Number. Please add: **Project Number:** 013")
