@@ -45,7 +45,9 @@ jobs:
           def extract_value(label):
               # label expects a regex fragment, e.g., r"project\s*number"
               pattern = rf"{label}\s*:\s*(.+)"
-              match = re.search(pattern, body, flags=re.IGNORECASE)
+              # Ignore HTML comments so guidance text does not get parsed as values
+              scrubbed = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
+              match = re.search(pattern, scrubbed, flags=re.IGNORECASE)
               if not match:
                   return None
               value = match.group(1).strip()
@@ -59,7 +61,7 @@ jobs:
 
           if not raw_number:
               errors.append("❌ Missing Project Number. Please add: **Project Number:** 013")
-          elif not re.fullmatch(r"\\d+", raw_number):
+          elif not re.fullmatch(r"\d+", raw_number):
               errors.append("❌ Invalid Project Number. Use digits only (e.g., 013).")
 
           if not raw_name:
