@@ -28,51 +28,51 @@ jobs:
           set -euo pipefail
 
           python - <<'PY'
-import os, re, subprocess, sys, textwrap
+          import os, re, subprocess, sys, textwrap
 
-body = os.environ.get("PR_BODY", "") or ""
-pr_number = os.environ["PR_NUMBER"]
-gh_token = os.environ.get("GH_TOKEN")
-gout = os.environ.get("GITHUB_OUTPUT")
+          body = os.environ.get("PR_BODY", "") or ""
+          pr_number = os.environ["PR_NUMBER"]
+          gh_token = os.environ.get("GH_TOKEN")
+          gout = os.environ.get("GITHUB_OUTPUT")
 
-errors = []
+          errors = []
 
-def extract_value(label):
-    pattern = rf"{label}\\s*:\\s*(.+)"
-    match = re.search(pattern, body, flags=re.IGNORECASE)
-    return match.group(1).strip() if match else None
+          def extract_value(label):
+              pattern = rf"{label}\\s*:\\s*(.+)"
+              match = re.search(pattern, body, flags=re.IGNORECASE)
+              return match.group(1).strip() if match else None
 
-raw_number = extract_value("project\\s*number")
-raw_name = extract_value("project\\s*name")
+          raw_number = extract_value("project\\s*number")
+          raw_name = extract_value("project\\s*name")
 
-if not raw_number:
-    errors.append("❌ Missing Project Number. Please add: **Project Number:** 013")
-elif not re.fullmatch(r"\\d+", raw_number):
-    errors.append("❌ Invalid Project Number. Use digits only (e.g., 013).")
+          if not raw_number:
+              errors.append("❌ Missing Project Number. Please add: **Project Number:** 013")
+          elif not re.fullmatch(r"\\d+", raw_number):
+              errors.append("❌ Invalid Project Number. Use digits only (e.g., 013).")
 
-if not raw_name:
-    errors.append("❌ Missing Project Name. Please add: **Project Name:** mechanical_refactor_score")
-else:
-    if not re.fullmatch(r"[a-z0-9_]+", raw_name):
-        errors.append("❌ Invalid Project Name. Use lowercase snake_case (e.g., mechanical_refactor_score).")
+          if not raw_name:
+              errors.append("❌ Missing Project Name. Please add: **Project Name:** mechanical_refactor_score")
+          else:
+              if not re.fullmatch(r"[a-z0-9_]+", raw_name):
+                  errors.append("❌ Invalid Project Name. Use lowercase snake_case (e.g., mechanical_refactor_score).")
 
-if errors:
-    message = "❌ PR Validation Failed:\\n" + "\\n".join(f"- {e}" for e in errors) + "\\n\\nPlease include both fields in the description:\\n- **Project Number:** 013\\n- **Project Name:** mechanical_refactor_score"
-    subprocess.run(["gh", "pr", "comment", pr_number, "--body", message], check=False)
-    subprocess.run(["gh", "pr", "edit", pr_number, "--add-label", "needs-info"], check=False)
-    sys.exit(1)
+          if errors:
+              message = "❌ PR Validation Failed:\\n" + "\\n".join(f"- {e}" for e in errors) + "\\n\\nPlease include both fields in the description:\\n- **Project Number:** 013\\n- **Project Name:** mechanical_refactor_score"
+              subprocess.run(["gh", "pr", "comment", pr_number, "--body", message], check=False)
+              subprocess.run(["gh", "pr", "edit", pr_number, "--add-label", "needs-info"], check=False)
+              sys.exit(1)
 
-# Passed validation, normalize values
-project_number = raw_number
-project_name = raw_name.lower()
-folder = f"BD-RL-{project_number.zfill(3)}-{project_name}"
+          # Passed validation, normalize values
+          project_number = raw_number
+          project_name = raw_name.lower()
+          folder = f"BD-RL-{project_number.zfill(3)}-{project_name}"
 
-success_msg = f"✅ PR Validation Passed. Target folder: {folder}"
-subprocess.run(["gh", "pr", "comment", pr_number, "--body", success_msg], check=False)
+          success_msg = f"✅ PR Validation Passed. Target folder: {folder}"
+          subprocess.run(["gh", "pr", "comment", pr_number, "--body", success_msg], check=False)
 
-if gout:
-    with open(gout, "a", encoding="utf-8") as f:
-        f.write(f"project_number={project_number}\\n")
-        f.write(f"project_name={project_name}\\n")
-        f.write(f"target_folder={folder}\\n")
-PY
+          if gout:
+              with open(gout, "a", encoding="utf-8") as f:
+                  f.write(f"project_number={project_number}\\n")
+                  f.write(f"project_name={project_name}\\n")
+                  f.write(f"target_folder={folder}\\n")
+          PY
