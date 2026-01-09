@@ -62,7 +62,7 @@ jobs:
                   errors.append("❌ Invalid Project Name. Use lowercase snake_case (e.g., mechanical_refactor_score).")
 
           if errors:
-              message = "❌ PR Validation Failed:\\n" + "\\n".join(f"- {e}" for e in errors) + "\\n\\nPlease include both fields in the description:\\n- **Project Number:** 013\\n- **Project Name:** mechanical_refactor_score"
+              message = "❌ PR Validation Failed:\n" + "\n".join(f"- {e}" for e in errors) + "\n\nPlease include both fields in the description:\n- **Project Number:** 013\n- **Project Name:** mechanical_refactor_score"
               subprocess.run(["gh", "pr", "comment", pr_number, "--body", message], check=False)
               subprocess.run(["gh", "pr", "edit", pr_number, "--add-label", "needs-info"], check=False)
               sys.exit(1)
