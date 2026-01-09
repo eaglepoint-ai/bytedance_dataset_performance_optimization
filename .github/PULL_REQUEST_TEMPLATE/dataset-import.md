@@ -1,3 +1,11 @@
+---
+name: Dataset Import Request
+about: Import a new dataset project
+title: "[Dataset] "
+labels: dataset
+assignees: ''
+---
+
 <!--
 AUTO-PARSING TEMPLATE — Bot reads the "Project Number" and "Project Name" values below.
 Expected patterns:
@@ -5,7 +13,6 @@ Expected patterns:
 - Project Name: snake_case identifier (e.g., mechanical_refactor_score)
 - Combined format: BD-RL-[NUMBER]-[NAME]
 -->
-
 
 # Dataset Import Request
 
