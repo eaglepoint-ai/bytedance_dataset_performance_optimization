@@ -64,6 +64,8 @@ jobs:
           if errors:
               message = "❌ PR Validation Failed:\n" + "\n".join(f"- {e}" for e in errors) + "\n\nPlease include both fields in the description:\n- **Project Number:** 013\n- **Project Name:** mechanical_refactor_score"
               subprocess.run(["gh", "pr", "comment", pr_number, "--body", message], check=False)
+              # Make sure the label exists; creation is idempotent and avoids failures if the label is missing
+              subprocess.run(["gh", "label", "create", "needs-info", "--color", "c5def5", "--description", "PR needs required info"], check=False)
               subprocess.run(["gh", "pr", "edit", pr_number, "--add-label", "needs-info"], check=False)
               sys.exit(1)
 
