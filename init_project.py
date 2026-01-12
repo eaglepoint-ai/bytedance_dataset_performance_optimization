@@ -59,11 +59,19 @@ def write_file(path: Path, content: str = "") -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Initialize project structure.")
-    parser.add_argument("project_name", help="Project root folder name")
+    parser.add_argument(
+        "project_name",
+        nargs="?",
+        help="Project root folder name; if omitted, use current directory",
+    )
     args = parser.parse_args()
 
-    root = Path(args.project_name)
-    base_name = args.project_name
+    if args.project_name:
+        root = Path(args.project_name)
+        base_name = args.project_name
+    else:
+        root = Path(".")
+        base_name = Path.cwd().name
 
     # Required files/directories
     write_file(root / "repository_before" / "__init__.py", "")
