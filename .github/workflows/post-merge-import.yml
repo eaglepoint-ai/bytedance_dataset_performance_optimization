@@ -3,7 +3,6 @@ name: Post Merge Import
 on:
   pull_request:
     branches:
-      - main
       - main-test
     types:
       - closed
@@ -15,7 +14,7 @@ permissions:
 jobs:
   import-folder:
     name: Import merged PR into folder
-    if: github.event.pull_request.merged == true && (github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'main-test')
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main-test'
     runs-on: ubuntu-latest
     steps:
       - name: Set base branch
@@ -171,6 +170,17 @@ jobs:
           PY
 
           rm -f copied_files.txt
+
+      - name: Regenerate template defaults
+        if: steps.detect_label.outputs.run_import == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f init_project.py ]; then
+            echo "::error::init_project.py not found; cannot regenerate template defaults."
+            exit 1
+          fi
+          python init_project.py
 
       - name: Commit and push changes
         if: steps.detect_label.outputs.run_import == 'true'
