@@ -44,7 +44,7 @@ jobs:
           pr_number = os.environ["PR_NUMBER"]
           repo = os.environ["REPO"]
           gh_token = os.environ.get("GH_TOKEN", "")
-          init_path = Path("init_project.py")
+          init_path = Path("project_init.py")
 
           errors = []
 
@@ -70,7 +70,7 @@ jobs:
                       )
 
           if not init_path.exists():
-              errors.append("init_project.py not found at repo root.")
+              errors.append("project_init.py not found at repo root.")
 
           def extract_parts(node):
               if isinstance(node, ast.Name) and node.id == "root":

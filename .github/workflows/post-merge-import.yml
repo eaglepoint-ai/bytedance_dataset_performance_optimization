@@ -98,6 +98,22 @@ jobs:
           mapfile -t files < <(git ls-tree -r --name-only "$MERGE_SHA")
           : > copied_files.txt
 
+          normalize_path() {
+            local in="$1"
+            local IFS="/"
+            read -ra parts <<< "$in"
+            local out=""
+            for p in "${parts[@]}"; do
+              local clean="${p#template_}"
+              if [ -z "$out" ]; then
+                out="$clean"
+              else
+                out="$out/$clean"
+              fi
+            done
+            echo "$out"
+          }
+
           for path in "${files[@]}"; do
             skip=false
             for prefix in "${exclude_prefixes[@]}"; do
@@ -119,7 +135,8 @@ jobs:
               continue
             fi
 
-            dest="$TARGET_FOLDER/$path"
+            normalized_rel="$(normalize_path "$path")"
+            dest="$TARGET_FOLDER/$normalized_rel"
             mkdir -p "$(dirname "$dest")"
             git show "$MERGE_SHA:$path" > "$dest"
             echo "$path" >> copied_files.txt
