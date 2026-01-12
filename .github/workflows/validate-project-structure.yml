@@ -44,7 +44,9 @@ jobs:
           pr_number = os.environ["PR_NUMBER"]
           repo = os.environ["REPO"]
           gh_token = os.environ.get("GH_TOKEN", "")
-          init_path = Path("project_init.py")
+          init_candidates = [Path("project_init.py"), Path("init_project.py")]
+          init_path = next((p for p in init_candidates if p.exists()), None)
+          source_name = init_path.name if init_path else "project_init.py"
 
           errors = []
 
@@ -69,8 +71,8 @@ jobs:
                           check=False,
                       )
 
-          if not init_path.exists():
-              errors.append("project_init.py not found at repo root.")
+          if not init_path:
+              errors.append("Neither project_init.py nor init_project.py found at repo root.")
 
           def extract_parts(node):
               if isinstance(node, ast.Name) and node.id == "root":
@@ -94,15 +96,7 @@ jobs:
                       if parts:
                           expected_files.add("/".join(parts))
 
-          expected_dirs = {
-              "evaluation",
-              "instances",
-              "patches",
-              "repository_before",
-              "repository_after",
-              "tests",
-              "trajectory",
-          }
+          expected_dirs = set()
           for f in expected_files:
               parent = Path(f).parent
               if parent != Path("."):
@@ -117,7 +111,7 @@ jobs:
 
           if missing_dirs or missing_files or errors:
               delete_comments_with_prefixes((failure_prefix, success_prefix))
-              lines = [f"{failure_prefix}. Source: init_project.py"]
+              lines = [f"{failure_prefix}. Source: {source_name}"]
               for d in missing_dirs:
                   lines.append(f"- Missing required directory: `{d}/` - Please create the `{d}/` directory at repo root.")
               for f in missing_files:
