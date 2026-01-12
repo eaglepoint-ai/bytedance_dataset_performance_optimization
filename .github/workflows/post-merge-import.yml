@@ -1,0 +1,219 @@
+name: Post Merge Import
+
+on:
+  pull_request:
+    branches:
+      - main-test
+    types:
+      - closed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  import-folder:
+    name: Import merged PR into folder
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main-test'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set base branch
+        id: vars
+        run: echo "base_branch=${{ github.event.pull_request.base.ref }}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout main with full history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.vars.outputs.base_branch }}
+          fetch-depth: 0
+
+      - name: Detect import-folder label
+        id: detect_label
+        shell: bash
+        env:
+          LABEL_PREFIX: "import-folder:"
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          import json
+          import os
+
+          prefix = os.environ["LABEL_PREFIX"]
+          event_path = os.environ["GITHUB_EVENT_PATH"]
+          gout = os.environ["GITHUB_OUTPUT"]
+
+          with open(event_path, "r", encoding="utf-8") as f:
+              event = json.load(f)
+
+          labels = [lbl.get("name", "") for lbl in event.get("pull_request", {}).get("labels", [])]
+          folder = next((lbl[len(prefix):].strip() for lbl in labels if lbl.startswith(prefix)), None)
+
+          with open(gout, "a", encoding="utf-8") as f:
+              if folder:
+                  f.write(f"folder_name={folder}\n")
+                  f.write("run_import=true\n")
+                  print(f"Found import-folder label -> {folder}")
+              else:
+                  f.write("run_import=false\n")
+                  print("No import-folder label present; skipping workflow steps.")
+          PY
+
+      - name: Ensure target folder does not exist
+        if: steps.detect_label.outputs.run_import == 'true'
+        shell: bash
+        env:
+          TARGET_FOLDER: ${{ steps.detect_label.outputs.folder_name }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TARGET_FOLDER" ]; then
+            echo "::error::Folder name not resolved from label."
+            exit 1
+          fi
+          if [ -d "$TARGET_FOLDER" ]; then
+            echo "::error::Folder $TARGET_FOLDER already exists."
+            exit 1
+          fi
+          echo "Target folder: $TARGET_FOLDER"
+
+      - name: Copy merged files into folder
+        if: steps.detect_label.outputs.run_import == 'true'
+        shell: bash
+        env:
+          TARGET_FOLDER: ${{ steps.detect_label.outputs.folder_name }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$MERGE_SHA" ] || ! git cat-file -e "$MERGE_SHA^{commit}"; then
+            echo "::error::Merge commit SHA is missing or invalid."
+            exit 1
+          fi
+
+          mkdir -p "$TARGET_FOLDER"
+
+          exclude_prefixes=( ".github/" "tools/" "shared/" )
+          exclude_files=( "README.md" ".gitignore" "LICENSE" "init_project.py" )
+
+          mapfile -t files < <(git ls-tree -r --name-only "$MERGE_SHA")
+          : > copied_files.txt
+
+          for path in "${files[@]}"; do
+            skip=false
+            for prefix in "${exclude_prefixes[@]}"; do
+              if [[ "$path" == "$prefix"* ]]; then
+                skip=true
+                break
+              fi
+            done
+            if $skip; then
+              continue
+            fi
+            for fname in "${exclude_files[@]}"; do
+              if [[ "$path" == "$fname" ]]; then
+                skip=true
+                break
+              fi
+            done
+            if $skip; then
+              continue
+            fi
+
+            dest="$TARGET_FOLDER/$path"
+            mkdir -p "$(dirname "$dest")"
+            git show "$MERGE_SHA:$path" > "$dest"
+            echo "$path" >> copied_files.txt
+          done
+
+          copied_count=$(wc -l < copied_files.txt | tr -d ' ')
+          if [ "$copied_count" -eq 0 ]; then
+            echo "::warning::No files to copy after exclusions."
+          else
+            echo "Copied $copied_count files into $TARGET_FOLDER"
+          fi
+
+      - name: Clean up root files moved into folder
+        if: steps.detect_label.outputs.run_import == 'true'
+        shell: bash
+        env:
+          TARGET_FOLDER: ${{ steps.detect_label.outputs.folder_name }}
+        run: |
+          set -euo pipefail
+
+          if [ -s copied_files.txt ]; then
+            while IFS= read -r path; do
+              if [ -f "$path" ]; then
+                rm -f "$path"
+              fi
+            done < copied_files.txt
+          else
+            echo "No files recorded for cleanup."
+          fi
+
+          python - <<'PY'
+          import os
+
+          folder = os.environ["TARGET_FOLDER"]
+          keep_roots = {".git", ".github", "tools", "shared", folder}
+
+          for root, dirs, files in os.walk(".", topdown=False):
+              if root == ".":
+                  continue
+              name = os.path.basename(root)
+              if name in keep_roots:
+                  continue
+              try:
+                  if not os.listdir(root):
+                      os.rmdir(root)
+              except FileNotFoundError:
+                  continue
+          PY
+
+          rm -f copied_files.txt
+
+      - name: Regenerate template defaults
+        if: steps.detect_label.outputs.run_import == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f init_project.py ]; then
+            echo "::error::init_project.py not found; cannot regenerate template defaults."
+            exit 1
+          fi
+          python init_project.py
+
+      - name: Commit and push changes
+        if: steps.detect_label.outputs.run_import == 'true'
+        shell: bash
+        env:
+          BASE_BRANCH: ${{ steps.vars.outputs.base_branch }}
+          TARGET_FOLDER: ${{ steps.detect_label.outputs.folder_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "::warning::No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Import ${TARGET_FOLDER} from PR #${PR_NUMBER} at ${MERGE_SHA}"
+          git push origin "HEAD:${BASE_BRANCH}"
+
+      - name: Post success comment
+        if: steps.detect_label.outputs.run_import == 'true'
+        shell: bash
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          TARGET_FOLDER: ${{ steps.detect_label.outputs.folder_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr comment "$PR_NUMBER" --body "✅ Import completed, folder created: ${TARGET_FOLDER}"
