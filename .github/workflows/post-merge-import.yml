@@ -15,13 +15,17 @@ permissions:
 jobs:
   import-folder:
     name: Import merged PR into folder
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true && (github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'main-test')
     runs-on: ubuntu-latest
     steps:
+      - name: Set base branch
+        id: vars
+        run: echo "base_branch=${{ github.event.pull_request.base.ref }}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout main with full history
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ steps.vars.outputs.base_branch }}
           fetch-depth: 0
 
       - name: Detect import-folder label
@@ -172,6 +176,7 @@ jobs:
         if: steps.detect_label.outputs.run_import == 'true'
         shell: bash
         env:
+          BASE_BRANCH: ${{ steps.vars.outputs.base_branch }}
           TARGET_FOLDER: ${{ steps.detect_label.outputs.folder_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
@@ -190,7 +195,7 @@ jobs:
           fi
 
           git commit -m "Import ${TARGET_FOLDER} from PR #${PR_NUMBER} at ${MERGE_SHA}"
-          git push origin HEAD:main
+          git push origin "HEAD:${BASE_BRANCH}"
 
       - name: Post success comment
         if: steps.detect_label.outputs.run_import == 'true'
