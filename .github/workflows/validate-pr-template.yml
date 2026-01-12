@@ -2,7 +2,9 @@ name: Validate PR Template
 
 on:
   pull_request:
-    branches: [ main,main-test ]
+    branches: 
+        - main
+        - main-test
     types:
       - opened
       - edited
