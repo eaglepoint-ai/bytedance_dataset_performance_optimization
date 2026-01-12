@@ -3,7 +3,6 @@ name: Post Merge Import
 on:
   pull_request:
     branches:
-      - main
       - main-test
     types:
       - closed
@@ -15,7 +14,7 @@ permissions:
 jobs:
   import-folder:
     name: Import merged PR into folder
-    if: github.event.pull_request.merged == true && (github.event.pull_request.base.ref == 'main' || github.event.pull_request.base.ref == 'main-test')
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main-test'
     runs-on: ubuntu-latest
     steps:
       - name: Set base branch
