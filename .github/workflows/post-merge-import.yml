@@ -93,7 +93,7 @@ jobs:
           mkdir -p "$TARGET_FOLDER"
 
           exclude_prefixes=( ".github/" "tools/" "shared/" )
-          exclude_files=( "README.md" ".gitignore" "LICENSE" "init_project.py" )
+          exclude_files=( "README.md" ".gitignore" "LICENSE" "init_project.py" "project_init.py" )
 
           mapfile -t files < <(git ls-tree -r --name-only "$MERGE_SHA")
           : > copied_files.txt
@@ -116,6 +116,10 @@ jobs:
 
           for path in "${files[@]}"; do
             skip=false
+            # Skip any existing BD-RL-* folders so we don't nest previous imports
+            case "$path" in
+              BD-RL-*-*/*) skip=true ;;
+            esac
             for prefix in "${exclude_prefixes[@]}"; do
               if [[ "$path" == "$prefix"* ]]; then
                 skip=true
