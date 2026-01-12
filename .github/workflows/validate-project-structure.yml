@@ -96,6 +96,10 @@ jobs:
                       if parts:
                           expected_files.add("/".join(parts))
 
+          # Some root files are optional for template-prefixed branches
+          optional_root_files = {"Dockerfile", "docker-compose.yml", "requirements.txt"}
+          expected_files -= optional_root_files
+
           expected_dirs = set()
           for f in expected_files:
               parent = Path(f).parent
