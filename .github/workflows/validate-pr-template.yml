@@ -114,10 +114,45 @@ jobs:
           project_number = raw_number
           project_name = raw_name.lower()
           folder = f"BD-RL-{project_number.zfill(3)}-{project_name}"
+          import_label = f"import-folder:{folder}"
 
           delete_comments_with_prefixes((failure_prefix, success_prefix))
           # Remove failure label if present now that validation passed
           subprocess.run(["gh", "pr", "edit", pr_number, "--remove-label", "needs-info"], check=False)
+
+          def get_labels():
+              try:
+                  res = subprocess.run(
+                      ["gh", "api", f"repos/{repo}/issues/{pr_number}/labels"],
+                      check=True,
+                      capture_output=True,
+                      text=True,
+                  )
+                  return [l.get("name", "") for l in json.loads(res.stdout)]
+              except Exception:
+                  return []
+
+          # Remove any old import-folder:* labels to avoid duplicates
+          for lbl in get_labels():
+              if lbl.startswith("import-folder:") and lbl != import_label:
+                  subprocess.run(["gh", "pr", "edit", pr_number, "--remove-label", lbl], check=False)
+
+          # Ensure the import label exists and is applied
+          subprocess.run(
+              [
+                  "gh",
+                  "label",
+                  "create",
+                  import_label,
+                  "--color",
+                  "ededed",
+                  "--description",
+                  "Folder name for post-merge import",
+                  "--force",
+              ],
+              check=False,
+          )
+          subprocess.run(["gh", "pr", "edit", pr_number, "--add-label", import_label], check=False)
 
           if gout:
               with open(gout, "a", encoding="utf-8") as f:
