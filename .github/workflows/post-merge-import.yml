@@ -172,6 +172,17 @@ jobs:
 
           rm -f copied_files.txt
 
+      - name: Regenerate template defaults
+        if: steps.detect_label.outputs.run_import == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f init_project.py ]; then
+            echo "::error::init_project.py not found; cannot regenerate template defaults."
+            exit 1
+          fi
+          python init_project.py
+
       - name: Commit and push changes
         if: steps.detect_label.outputs.run_import == 'true'
         shell: bash
